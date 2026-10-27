@@ -5,6 +5,10 @@ import academy.backend.market_pulse.model.Instrument;
 import academy.backend.market_pulse.model.Quote;
 
 public class QuoteFileMapper {
+
+    private QuoteFileMapper() {
+    }
+
     public static QuoteFileDto toDto(Quote quote) {
         Instrument instrument = quote.getInstrument();
         return new QuoteFileDto(

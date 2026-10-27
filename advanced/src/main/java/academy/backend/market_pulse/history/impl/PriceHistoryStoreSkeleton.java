@@ -1,10 +1,20 @@
 package academy.backend.market_pulse.history.impl;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import academy.backend.market_pulse.history.PriceHistoryStore;
 import academy.backend.market_pulse.history.PricePoint;
+import academy.backend.market_pulse.history.PricePointFileDto;
+import academy.backend.market_pulse.history.PricePointFileMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Заготовка для самостоятельной работы (см. «Требования к файловому хранилищу.md», семинар 7) —
@@ -16,18 +26,67 @@ import academy.backend.market_pulse.history.PricePoint;
  */
 public class PriceHistoryStoreSkeleton implements PriceHistoryStore {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     public Path append(Path directory, PricePoint point) {
         // TODO: записать точку в новый файл внутри directory — существующие файлы не трогать.
         //  Подсказка: имя файла на основе point.timestamp() даёт сортировку по имени = сортировку
         //  по времени.
-        throw new UnsupportedOperationException("TODO: реализовать запись точки истории цены");
+        try {
+            Files.createDirectories(directory);
+
+            PricePointFileDto dto = PricePointFileMapper.toDto(point);
+
+            String safeTicker = point.ticker().replaceAll("[^a-zA-Z0-9_-]", "_");
+
+            String prefix = "price-" + safeTicker + "-" + point.timestamp().toEpochMilli() + "-";
+
+            Path file = Files.createTempFile(directory, prefix, ".json");
+
+            objectMapper.writeValue(file.toFile(), dto);
+
+            return file;
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                "Не удалось сохранить историю в каталоге: " + directory, e);
+        }
     }
 
     @Override
     public List<PricePoint> load(Path directory, String ticker) {
-        // TODO: прочитать все точки по тикеру в порядке возрастания времени.
-        //  Если для тикера ещё нет точек — вернуть пустой список, а не бросать исключение.
-        throw new UnsupportedOperationException("TODO: реализовать чтение истории цены");
+        if (Files.notExists(directory)) {
+            return Collections.emptyList();
+        }
+
+        List<PricePoint> points = new ArrayList<>();
+
+        try (Stream<Path> files = Files.list(directory)) {
+            List<Path> historyFiles = files
+                .filter(Files::isRegularFile)
+                .filter(path -> path.getFileName().toString().startsWith("price-"))
+                .filter(path -> path.getFileName().toString().endsWith(".json"))
+                .toList();
+
+            for (Path file : historyFiles) {
+                PricePointFileDto dto = objectMapper.readValue(file.toFile(), PricePointFileDto.class);
+
+                if (dto == null) {
+                    throw new IOException("Ожидалась точка истории, получен null: " + file);
+                }
+
+                PricePoint point = PricePointFileMapper.toDomain(dto);
+
+                if (point.ticker().equals(ticker)) {
+                    points.add(point);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                "Не удалось загрузить историю из каталога: " + directory, e);
+        }
+
+        points.sort(Comparator.comparing(PricePoint::timestamp));
+        return points;
     }
 }
