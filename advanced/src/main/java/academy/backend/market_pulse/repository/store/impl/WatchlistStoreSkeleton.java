@@ -1,6 +1,5 @@
 package academy.backend.market_pulse.repository.store.impl;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -50,7 +49,7 @@ public class WatchlistStoreSkeleton implements WatchlistStore {
             Set<String> tickers = objectMapper.readValue(path.toFile(), new TypeReference<LinkedHashSet<String>>() {});
 
             if (tickers == null) {
-                throw new IOException("Ожидался JSON-массив стикеров, получен null");
+                throw new IOException("Ожидался JSON-массив тикеров, получен null");
             }
 
             return tickers;

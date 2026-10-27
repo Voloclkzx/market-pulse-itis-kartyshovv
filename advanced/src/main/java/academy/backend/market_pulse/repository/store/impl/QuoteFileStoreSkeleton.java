@@ -57,7 +57,7 @@ public class QuoteFileStoreSkeleton implements QuoteFileStore {
             });
 
             if (quotesDto == null) {
-                throw new IOException("Ожидался JSON-массив стикеров, получен null");
+                throw new IOException("Ожидался JSON-массив котировок, получен null");
             }
 
             return quotesDto.stream().map(QuoteFileMapper::toDomain).toList();

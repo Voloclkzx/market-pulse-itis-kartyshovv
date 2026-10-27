@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,10 +29,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class PriceHistoryStoreSkeleton implements PriceHistoryStore {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final DateTimeFormatter FILE_TIME_FORMAT =
+        DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss-SSSSSSSSS")
+            .withZone(ZoneOffset.UTC);
 
     @Override
     public Path append(Path directory, PricePoint point) {
-        // TODO: записать точку в новый файл внутри directory — существующие файлы не трогать.
         //  Подсказка: имя файла на основе point.timestamp() даёт сортировку по имени = сортировку
         //  по времени.
         try {
@@ -38,9 +42,10 @@ public class PriceHistoryStoreSkeleton implements PriceHistoryStore {
 
             PricePointFileDto dto = PricePointFileMapper.toDto(point);
 
+            String timestamp = FILE_TIME_FORMAT.format(point.timestamp());
             String safeTicker = point.ticker().replaceAll("[^a-zA-Z0-9_-]", "_");
 
-            String prefix = "price-" + safeTicker + "-" + point.timestamp().toEpochMilli() + "-";
+            String prefix = "price-" + timestamp + "-" + safeTicker + "-";
 
             Path file = Files.createTempFile(directory, prefix, ".json");
 
@@ -66,6 +71,7 @@ public class PriceHistoryStoreSkeleton implements PriceHistoryStore {
                 .filter(Files::isRegularFile)
                 .filter(path -> path.getFileName().toString().startsWith("price-"))
                 .filter(path -> path.getFileName().toString().endsWith(".json"))
+                .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                 .toList();
 
             for (Path file : historyFiles) {
@@ -81,12 +87,12 @@ public class PriceHistoryStoreSkeleton implements PriceHistoryStore {
                     points.add(point);
                 }
             }
+
+            return points;
+
         } catch (IOException e) {
             throw new UncheckedIOException(
                 "Не удалось загрузить историю из каталога: " + directory, e);
         }
-
-        points.sort(Comparator.comparing(PricePoint::timestamp));
-        return points;
     }
 }
