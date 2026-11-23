@@ -1,9 +1,16 @@
 package academy.backend.market_pulse.repository.store.impl;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import academy.backend.market_pulse.repository.store.WatchlistStore;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Заготовка для самостоятельной работы (см. «Требования к файловому хранилищу.md», семинар 7) —
@@ -13,16 +20,41 @@ import academy.backend.market_pulse.repository.store.WatchlistStore;
  */
 public class WatchlistStoreSkeleton implements WatchlistStore {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     public void save(Path path, Set<String> tickers) {
-        // TODO: сохранить тикеры watchlist-а в файл по указанному пути, сохранив порядок.
-        throw new UnsupportedOperationException("TODO: реализовать сохранение watchlist-а в файл");
+        Path pathParent = path.getParent();
+        if (pathParent != null) {
+            try {
+                Files.createDirectories(pathParent);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Не удалось создать каталог: " + pathParent, e);
+            }
+        }
+
+        try {
+            objectMapper.writeValue(path.toFile(), tickers);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось записать данные в файл: " + path, e);
+        }
     }
 
     @Override
     public Set<String> load(Path path) {
-        // TODO: прочитать тикеры watchlist-а из файла.
-        //  Если файла ещё нет (первый запуск) — вернуть пустой набор, а не бросать исключение.
-        throw new UnsupportedOperationException("TODO: реализовать чтение watchlist-а из файла");
+        if (Files.notExists(path)) {
+            return Collections.emptySet();
+        }
+        try {
+            Set<String> tickers = objectMapper.readValue(path.toFile(), new TypeReference<LinkedHashSet<String>>() {});
+
+            if (tickers == null) {
+                throw new IOException("Ожидался JSON-массив тикеров, получен null");
+            }
+
+            return tickers;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось загрузить данные из файла: " + path, e);
+        }
     }
 }

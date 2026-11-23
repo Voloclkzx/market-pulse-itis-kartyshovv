@@ -1,10 +1,19 @@
 package academy.backend.market_pulse.repository.store.impl;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import academy.backend.market_pulse.model.Quote;
 import academy.backend.market_pulse.repository.store.QuoteFileStore;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Заготовка для самостоятельной работы (см. «Требования к файловому хранилищу.md», семинар 7) —
@@ -14,19 +23,46 @@ import academy.backend.market_pulse.repository.store.QuoteFileStore;
  */
 public class QuoteFileStoreSkeleton implements QuoteFileStore {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     public void save(Path path, List<Quote> quotes) {
-        // TODO: сохранить котировки в файл по указанному пути.
         //  Подсказка: на каждую котировку нужно сохранить тикер, тип и валюту инструмента (чтобы
         //  потом восстановить его через InstrumentFactories.create), а также цену и изменение за
         //  период — этого достаточно, чтобы собрать Quote обратно.
-        throw new UnsupportedOperationException("TODO: реализовать сохранение котировок в файл");
+        Path pathParent = path.getParent();
+        if (pathParent != null) {
+            try {
+                Files.createDirectories(pathParent);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Не удалось создать каталог: " + pathParent, e);
+            }
+        }
+        List<QuoteFileDto> list = quotes.stream().map(QuoteFileMapper::toDto).toList();
+
+        try {
+            objectMapper.writeValue(path.toFile(), list);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось записать данные в файл: " + path, e);
+        }
     }
 
     @Override
     public List<Quote> load(Path path) {
-        // TODO: прочитать котировки из файла и восстановить при старте.
-        //  Если файла ещё нет (первый запуск) — вернуть пустой список, а не бросать исключение.
-        throw new UnsupportedOperationException("TODO: реализовать чтение котировок из файла");
+        if (Files.notExists(path)) {
+            return Collections.emptyList();
+        }
+        try {
+            List<QuoteFileDto> quotesDto = objectMapper.readValue(path.toFile(), new TypeReference<>() {
+            });
+
+            if (quotesDto == null) {
+                throw new IOException("Ожидался JSON-массив котировок, получен null");
+            }
+
+            return quotesDto.stream().map(QuoteFileMapper::toDomain).toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось загрузить данные из файла: " + path, e);
+        }
     }
 }
